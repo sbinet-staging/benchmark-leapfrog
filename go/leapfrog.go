@@ -2,12 +2,27 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math"
+	"os"
+	"runtime/pprof"
 )
 
 const nParticles = 2
 
 func main() {
+	{
+		f, err := os.Create("cpu.prof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer f.Close()
+		err = pprof.StartCPUProfile(f)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer pprof.StopCPUProfile()
+	}
 	var time float64
 	timeStep := 0.08
 	halfTimeStep := timeStep / 2.
