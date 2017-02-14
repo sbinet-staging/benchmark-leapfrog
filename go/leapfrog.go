@@ -6,9 +6,23 @@ import (
 	"math"
 	"os"
 	"runtime/pprof"
+
+	"github.com/gonum/floats"
 )
 
 const nParticles = 2
+
+var dx [3]float64
+
+type Vec3 []float64
+
+func newArray() *[nParticles]Vec3 {
+	var arr [nParticles]Vec3
+	for i := range arr {
+		arr[i] = Vec3(make([]float64, 3))
+	}
+	return &arr
+}
 
 func main() {
 	{
@@ -29,9 +43,9 @@ func main() {
 	timeLimit := 365.25 * 1e6
 
 	// Arrays (initialized to zero by default)
-	x := &[nParticles][3]float64{}
-	v := &[nParticles][3]float64{}
-	a := &[nParticles][3]float64{}
+	x := newArray()
+	v := newArray()
+	a := newArray()
 	m := &[nParticles]float64{}
 
 	m[0] = 0.08                 // M_SUN
@@ -53,27 +67,22 @@ func main() {
 	fmt.Println("Positions:", x)
 }
 
-func integrator_leapfrog_part1(x *[nParticles][3]float64, v *[nParticles][3]float64, halfTimeStep float64) {
+func integrator_leapfrog_part1(x *[nParticles]Vec3, v *[nParticles]Vec3, halfTimeStep float64) {
 	for i := 0; i < nParticles; i++ {
-		x[i][0] += halfTimeStep * v[i][0]
-		x[i][1] += halfTimeStep * v[i][1]
-		x[i][2] += halfTimeStep * v[i][2]
+		floats.AddScaled(x[i], halfTimeStep, v[i])
 	}
 }
 
-func integrator_leapfrog_part2(x *[nParticles][3]float64, v *[nParticles][3]float64, a *[nParticles][3]float64, timeStep float64, halfTimeStep float64) {
+func integrator_leapfrog_part2(x *[nParticles]Vec3, v *[nParticles]Vec3, a *[nParticles]Vec3, timeStep float64, halfTimeStep float64) {
 	for i := 0; i < nParticles; i++ {
-		v[i][0] += timeStep * a[i][0]
-		v[i][1] += timeStep * a[i][1]
-		v[i][2] += timeStep * a[i][2]
-		x[i][0] += halfTimeStep * v[i][0]
-		x[i][1] += halfTimeStep * v[i][1]
-		x[i][2] += halfTimeStep * v[i][2]
+		floats.AddScaled(v[i], timeStep, a[i])
+		floats.AddScaled(x[i], halfTimeStep, v[i])
 	}
 }
 
-func gravity_calculate_acceleration(m *[nParticles]float64, x *[nParticles][3]float64, a *[nParticles][3]float64) {
+func gravity_calculate_acceleration(m *[nParticles]float64, x *[nParticles]Vec3, a *[nParticles]Vec3) {
 	G := 6.6742367e-11 // m^3.kg^-1.s^-2
+	dx := dx[:]
 	for i := 0; i < nParticles; i++ {
 		a[i][0] = 0
 		a[i][1] = 0
@@ -82,14 +91,10 @@ func gravity_calculate_acceleration(m *[nParticles]float64, x *[nParticles][3]fl
 			if j == i {
 				continue
 			}
-			dx := x[i][0] - x[j][0]
-			dy := x[i][1] - x[j][1]
-			dz := x[i][2] - x[j][2]
-			r := math.Sqrt(dx*dx + dy*dy + dz*dz)
+			floats.AddScaledTo(dx, x[i], -1, x[j])
+			r := math.Sqrt(floats.Dot(dx, dx))
 			prefact := -G / (r * r * r) * m[j]
-			a[i][0] += prefact * dx
-			a[i][1] += prefact * dy
-			a[i][2] += prefact * dz
+			floats.AddScaled(a[i], prefact, dx)
 		}
 	}
 }
